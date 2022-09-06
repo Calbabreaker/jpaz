@@ -11,8 +11,8 @@ struct Args {
     file: Option<String>,
 
     /// Show a frequency table of all the characters specified by the character type
-    #[clap(short, long, value_enum, multiple_values(true))]
-    frequency: Option<Vec<jpaz::CharType>>,
+    #[clap(short, long, value_enum)]
+    frequency: Option<jpaz::CharType>,
 
     /// Prints unique number of characters for all character types
     #[clap(short, long, action)]
@@ -30,69 +30,63 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    if let Some(analyzer) = parse_input(&args.file) {
-        if let Some(char_types) = &args.frequency {
-            for char_type in char_types {
-                let freqs = analyzer.char_freqs(char_type);
-                for (char, count) in freqs {
-                    println!("{char} {count}");
+    let analyzer = parse_input(&args.file).unwrap_or_else(|err| {
+        eprintln!("Failed to read: {err}");
+        std::process::exit(1);
+    });
+
+    if let Some(char_type) = &args.frequency {
+        let freqs = analyzer.char_freqs(char_type);
+        for (char, count) in freqs {
+            println!("{char} {count}");
+        }
+    }
+
+    let exclude_list = args.exclude.unwrap_or(Vec::new());
+    macro_rules! print_count {
+        ($count_func: ident) => {
+            let mut total_count = 0;
+            let mut counts = Vec::new();
+            for char_type in jpaz::ALL_CHAR_TYPES {
+                if !exclude_list.iter().any(|&i| i == *char_type) {
+                    let count = analyzer.$count_func(char_type);
+                    total_count += count;
+                    counts.push((char_type, count));
                 }
             }
-        }
 
-        let exclude_list = args.exclude.unwrap_or(Vec::new());
-        macro_rules! print_count {
-            ($count_func: ident) => {
-                let mut total_count = 0;
-                let mut counts = Vec::new();
-                for char_type in jpaz::ALL_CHAR_TYPES {
-                    if !exclude_list.iter().any(|&i| i == *char_type) {
-                        let count = analyzer.$count_func(char_type);
-                        total_count += count;
-                        counts.push((char_type, count));
-                    }
-                }
+            for (char_type, count) in counts {
+                println!(
+                    "{char_type} {count} {:.2}%",
+                    (count as f32 / total_count as f32) * 100.0
+                );
+            }
 
-                for (char_type, count) in counts {
-                    println!(
-                        "{char_type} {count} {:.2}%",
-                        (count as f32 / total_count as f32) * 100.0
-                    );
-                }
+            println!("Total {total_count}");
+        };
+    }
 
-                println!("Total {total_count}");
-            };
-        }
+    if args.count {
+        print_count!(get_total_count);
+    }
 
-        if args.count {
-            print_count!(get_total_count);
-        }
-
-        if args.unique {
-            print_count!(get_unique_count);
-        }
+    if args.unique {
+        print_count!(get_unique_count);
     }
 }
 
-fn parse_input(filename: &Option<String>) -> Option<jpaz::Analyzer> {
+fn parse_input(filename: &Option<String>) -> Result<jpaz::Analyzer, std::io::Error> {
     let mut analyzer = jpaz::Analyzer::default();
     if let Some(file_name) = filename {
-        match File::open(file_name) {
-            Ok(file) => {
-                for line in BufReader::new(file).lines() {
-                    analyzer.read_str(&line.expect("Failed to read line"));
-                }
-            }
-            Err(err) => {
-                eprintln!("Failed to open file {} [{}]", file_name, err);
-                None?
-            }
-        };
+        let file = File::open(file_name)?;
+        for line in BufReader::new(file).lines() {
+            analyzer.read_str(&line?);
+        }
     } else {
         for line in std::io::stdin().lines() {
-            analyzer.read_str(&line.expect("Failed to read line"));
+            analyzer.read_str(&line?);
         }
     }
 
-    Some(analyzer)
+    Ok(analyzer)
 }
