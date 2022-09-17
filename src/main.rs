@@ -12,7 +12,7 @@ struct Args {
 
     /// Show a frequency table of all the characters specified by the character type
     #[clap(short, long, value_enum)]
-    frequency: Option<jpaz::CharType>,
+    frequency: Option<jpaz::CharKind>,
 
     /// Prints unique number of characters for all character types
     #[clap(short, long, action)]
@@ -24,7 +24,7 @@ struct Args {
 
     /// Character types to exclude from counts (not frequencies)
     #[clap(short, long, value_enum, multiple_values(true))]
-    exclude: Option<Vec<jpaz::CharType>>,
+    exclude: Option<Vec<jpaz::CharKind>>,
 }
 
 fn main() {
@@ -35,43 +35,20 @@ fn main() {
         std::process::exit(1);
     });
 
-    if let Some(char_type) = &args.frequency {
-        let freqs = analyzer.char_freqs(char_type);
+    if let Some(kind) = &args.frequency {
+        let freqs = analyzer.char_freqs(*kind);
         for (char, count) in freqs {
             println!("{char} {count}");
         }
     }
 
     let exclude_list = args.exclude.unwrap_or(Vec::new());
-    macro_rules! print_count {
-        ($count_func: ident) => {
-            let mut total_count = 0;
-            let mut counts = Vec::new();
-            for char_type in jpaz::ALL_CHAR_TYPES {
-                if !exclude_list.iter().any(|&i| i == *char_type) {
-                    let count = analyzer.$count_func(char_type);
-                    total_count += count;
-                    counts.push((char_type, count));
-                }
-            }
-
-            for (char_type, count) in counts {
-                println!(
-                    "{char_type} {count} {:.2}%",
-                    (count as f32 / total_count as f32) * 100.0
-                );
-            }
-
-            println!("Total {total_count}");
-        };
-    }
-
     if args.count {
-        print_count!(get_total_count);
+        print_count(&exclude_list, |char| analyzer.get_total_count(char));
     }
 
     if args.unique {
-        print_count!(get_unique_count);
+        print_count(&exclude_list, |char| analyzer.get_unique_count(char));
     }
 }
 
@@ -89,4 +66,29 @@ fn parse_input(filename: &Option<String>) -> Result<jpaz::Analyzer, std::io::Err
     }
 
     Ok(analyzer)
+}
+
+fn print_count<F: Fn(jpaz::CharKind) -> u32>(
+    exclude_list: &Vec<jpaz::CharKind>,
+    get_count_func: F,
+) {
+    let mut total_count = 0;
+    let mut counts = Vec::new();
+    for kind in jpaz::ALL_CHAR_KINDS {
+        if !exclude_list.iter().any(|&i| i == *kind) {
+            let count = get_count_func(*kind);
+            total_count += count;
+            counts.push((kind, count));
+        }
+    }
+
+    for (kind, count) in counts {
+        let percentage = (count as f32 / total_count as f32) * 100.0;
+        println!(
+            "{kind} {count} {:.2}%",
+            if percentage.is_nan() { 0.0 } else { percentage }
+        );
+    }
+
+    println!("Total {total_count}");
 }
