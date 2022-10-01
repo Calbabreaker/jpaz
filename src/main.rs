@@ -23,7 +23,7 @@ struct Args {
     count: bool,
 
     /// Character types to exclude from counts (not frequencies)
-    #[clap(short, long, value_enum, multiple_values(true))]
+    #[clap(short, long, value_enum, num_args(1..))]
     exclude: Option<Vec<jpaz::CharKind>>,
 }
 
