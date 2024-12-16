@@ -57,24 +57,21 @@ fn parse_input(filename: &Option<String>) -> Result<jpaz::Analyzer, std::io::Err
     if let Some(file_name) = filename {
         let file = File::open(file_name)?;
         for line in BufReader::new(file).lines() {
-            analyzer.read_str(&line?);
+            analyzer.parse_str(&line?);
         }
     } else {
         for line in std::io::stdin().lines() {
-            analyzer.read_str(&line?);
+            analyzer.parse_str(&line?);
         }
     }
 
     Ok(analyzer)
 }
 
-fn print_count<F: Fn(jpaz::CharKind) -> u32>(
-    exclude_list: &Vec<jpaz::CharKind>,
-    get_count_func: F,
-) {
+fn print_count(exclude_list: &[jpaz::CharKind], get_count_func: impl Fn(jpaz::CharKind) -> u32) {
     let mut total_count = 0;
     let mut counts = Vec::new();
-    for kind in jpaz::ALL_CHAR_KINDS {
+    for kind in jpaz::CharKind::ALL {
         if !exclude_list.iter().any(|&i| i == *kind) {
             let count = get_count_func(*kind);
             total_count += count;
